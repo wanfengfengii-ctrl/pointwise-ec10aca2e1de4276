@@ -6,7 +6,8 @@ from pathlib import Path
 
 from archive.index import initialize_archive
 from inventory.runs import initialize_run_index, lookup_segments
-from media.catalog import get_mount_manifest, mount_volume
+from media.catalog import get_mount_manifest, mount_paged_volume, mount_volume
+from media.paged import initialize_paged
 from media.port import LocalVolumePort
 from media.retire import initialize_retirements, retire_volume
 from media.session import initialize_mount_state
@@ -33,6 +34,7 @@ class ArchiveDesk:
                 initialize_receipts(self.db)
                 initialize_archive(self.db)
                 initialize_retirements(self.db)
+                initialize_paged(self.db)
                 initialize_report_history(self.db)
         except BaseException:
             self.db.close()
@@ -49,6 +51,9 @@ class ArchiveDesk:
 
     def mount(self, label, source, manifest):
         return mount_volume(self.db, self.port, label, source, manifest)
+
+    def mount_paged(self, label, source, manifest):
+        return mount_paged_volume(self.db, self.port, label, source, manifest)
 
     def manifest(self, mount_id):
         return get_mount_manifest(self.db, mount_id)
@@ -95,6 +100,10 @@ def _parser():
     mount.add_argument('label')
     mount.add_argument('source')
     mount.add_argument('manifest', type=Path)
+    paged = commands.add_parser('mount-paged')
+    paged.add_argument('label')
+    paged.add_argument('source')
+    paged.add_argument('manifest', type=Path)
     segments = commands.add_parser('segments')
     segments.add_argument('mount_id', type=int)
     segments.add_argument('--run')
@@ -121,6 +130,9 @@ def _run(desk, args):
     if args.command == 'mount':
         manifest = json.loads(args.manifest.read_text(encoding='utf-8'))
         return desk.mount(args.label, args.source, manifest)
+    if args.command == 'mount-paged':
+        manifest = json.loads(args.manifest.read_text(encoding='utf-8'))
+        return desk.mount_paged(args.label, args.source, manifest)
     if args.command == 'segments':
         return desk.segments(args.mount_id, args.run)
     if args.command == 'admit':

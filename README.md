@@ -33,8 +33,10 @@ with ArchiveDesk('work') as desk:
     window = desk.fulfill(receipt.order_id)
 ```
 
-`ArchiveDesk` 还提供 `mount(label, source, manifest)`、`manifest(mount_id)`、`segments(mount_id, run_id=None)`、`retire(request_id, mount_id)`、`report(mount_id)` 和 `history(report_id)`。`prepare(request)` 与 `accept(request)` 可分开调用，适用于初验后需要交班的情形。准备记录没有首执。`accept` 重新核对持久准备单及接纳关口。每个线程使用独立的 `ArchiveDesk`。
+`ArchiveDesk` 还提供 `mount(label, source, manifest)`、`mount_paged(label, source, manifest)`、`manifest(mount_id)`、`segments(mount_id, run_id=None)`、`retire(request_id, mount_id)`、`report(mount_id)` 和 `history(report_id)`。`prepare(request)` 与 `accept(request)` 可分开调用，适用于初验后需要交班的情形。准备记录没有首执。`accept` 重新核对持久准备单及接纳关口。每个线程使用独立的 `ArchiveDesk`。
 
-正常业务拒绝以 `storage.BusinessError` 的子类返回，非法参数可抛出 `ValueError`。失败的清单不发布段表。接纳写入或提交失败不会留下新的正式单或首执。写档失败时归还待办，原实例仍可由端口读取。端口无法报告在位或拔出时归还待确认。无正式单、断源缺档及损坏档案分别有领取错误。已固定的合法首执、退卷回执和旧报告可在重开后读取。
+逐页卷用 `mount_paged` 装卷，其余接口与普通卷相同，调用方式见 `PAGED_RETURN.md`。CLI 可用 `mount-paged` 代替 `mount`。逐页卷在 `retire` 时先关闭接纳并固定已有首执的正式窗口，再按原段从原起点到原终点逐页读取：每页先持久保全其窗口贡献与续验状态，确认后再交设备推进；确认失答则当次待办，重开后按设备实际游标续办。卷外只保存正式窗口覆盖的原字节，续验依据为可导出的 SHA-256 中间状态（校验元数据，不含整段原字节）。全部触及原段核验一致后才统一发布全部正式窗口，随后才允许拔卷；坏页会永久拦住本次发布与退卷。
+
+正常业务拒绝以 `storage.BusinessError` 的子类返回，非法参数可抛出 `ValueError`。失败的清单不发布段表。接纳写入或提交失败不会留下新的正式单或首执。写档失败时归还待办，原实例仍可由端口读取。端口无法报告在位或拔出时归还待确认。无正式单、断源缺档及损坏档案分别有领取错误。已固定的合法首执、退卷回执和旧报告可在重开后读取。逐页卷的坏页抛出 `media.paged.PagedBadPage`（`BusinessError` 子类），持久拦住本次退卷；确认失答、页面保全失败均待办，可由原退卷号重投。
 
 `archive.sqlite3` 保存业务状态、获准字节和班报。`port.sqlite3` 独立持久化模拟原卷读权，供应商全卷仅存于输入目录 `supplier`。端口、业务数据库及供应商文件都位于所选工作目录中。

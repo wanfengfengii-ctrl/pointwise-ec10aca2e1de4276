@@ -3,6 +3,7 @@ from collections.abc import Mapping
 
 from inventory.manifest import ManifestError, VerifiedManifest, verify_manifest
 from inventory.runs import load_verified_manifest, store_verified_manifest
+from media.paged import register_paged_mount
 from media.port import LocalVolumePort, PhysicalPresence, PortError
 from media.session import Mount, MountError, get_mount, publish_mount, register_mount, reject_mount
 from storage import require_key, transaction
@@ -14,8 +15,8 @@ class MountRejected(MountError):
         self.mount_id = mount_id
 
 
-def mount_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
-                 source: str, manifest: Mapping) -> Mount:
+def _mount_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
+                  source: str, manifest: Mapping, paged: bool) -> Mount:
     require_key(label, 'volume label')
     port_id = port.attach(source)
     try:
@@ -34,6 +35,8 @@ def mount_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
         if port.probe(port_id) is not PhysicalPresence.PRESENT:
             raise PortError('candidate no longer in place')
         with transaction(db):
+            if paged:
+                register_paged_mount(db, mount_id, port_id)
             store_verified_manifest(db, mount_id, checked)
             publish_mount(db, mount_id)
             return get_mount(db, mount_id)
@@ -46,6 +49,16 @@ def mount_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
         except PortError as release_error:
             raise MountRejected(mount_id, f'{exc}; candidate release unconfirmed') from release_error
         raise MountRejected(mount_id, str(exc)) from exc
+
+
+def mount_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
+                 source: str, manifest: Mapping) -> Mount:
+    return _mount_volume(db, port, label, source, manifest, paged=False)
+
+
+def mount_paged_volume(db: sqlite3.Connection, port: LocalVolumePort, label: str,
+                       source: str, manifest: Mapping) -> Mount:
+    return _mount_volume(db, port, label, source, manifest, paged=True)
 
 
 def get_mount_manifest(db: sqlite3.Connection, mount_id: int) -> VerifiedManifest:

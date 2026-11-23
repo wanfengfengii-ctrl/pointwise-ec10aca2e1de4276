@@ -1,0 +1,15 @@
+{
+  "label": "P",
+  "file": "previous.bin",
+  "bytes": [2, 3, 5, 7],
+  "manifest": {
+    "length": 4,
+    "runs": ["R"],
+    "segments": [
+      {"id": "head", "run": "R", "start": 0, "end": 2, "sha256": "ee9040f65c341855e070ff438eb0ea9d5b831b2a2c270fb7ef592d750408e3b3"},
+      {"id": "tail", "run": "R", "start": 2, "end": 4, "sha256": "a37473f76d4814e67eb342853e2321fa6fb8e236f38d5808a8deb11abd7e6fa8"}
+    ]
+  },
+  "orders": [["previous-window", 1, 3]],
+  "return": "previous-return"
+}
